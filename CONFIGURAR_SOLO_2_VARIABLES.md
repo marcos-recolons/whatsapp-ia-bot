@@ -16,11 +16,11 @@ Click en **"Add Variable"** o **"Agregar variable"** y agrega solo estas dos:
 
 **Variable 1:**
 - **Name**: `OPENAI_API_KEY`
-- **Value**: `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`
+- **Value**: `tu_openai_api_key_aqui`
 
 **Variable 2:**
 - **Name**: `WHATSAPP_API_KEY`
-- **Value**: `EAAFyZBW4QBWABPLZB7NKTnl53uU6hn7i4fQdh9ZCZBjrVgUcloQzuE69dtflDkvFpTm8cenKKbBILX86wfoInBZADzc3jle6GJFSdD3CpSAdSEyuMGRJnhdPlQAIhHjlsZCQiDPtuuppcHdzVae0gRxeX8IkRZCZCq95P5vMkOLagDBXyvZAVa46orbQaU1n1wx6skwZDZD`
+- **Value**: `tu_whatsapp_access_token_aqui`
 
 ### Paso 4: Guardar
 1. Click en **"Deploy"** o **"Desplegar"**

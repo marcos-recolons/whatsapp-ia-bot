@@ -49,13 +49,13 @@ Las variables de entorno están en la **configuración de la revisión** del ser
 Cuando encuentres la sección, agrega estas variables:
 
 ```
-OPENAI_API_KEY = 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
+OPENAI_API_KEY = tu_openai_api_key_aqui
 
 OPENAI_MODEL = gpt-3.5-turbo
 
 WHATSAPP_PROVIDER = meta
 
-WHATSAPP_API_KEY = EAAFyZBW4QBWABPLZB7NKTnl53uU6hn7i4fQdh9ZCZBjrVgUcloQzuE69dtflDkvFpTm8cenKKbBILX86wfoInBZADzc3jle6GJFSdD3CpSAdSEyuMGRJnhdPlQAIhHjlsZCQiDPtuuppcHdzVae0gRxeX8IkRZCZCq95P5vMkOLagDBXyvZAVa46orbQaU1n1wx6skwZDZD
+WHATSAPP_API_KEY = tu_whatsapp_access_token_aqui
 
 WHATSAPP_PHONE_NUMBER_ID = 378914085314990
 
