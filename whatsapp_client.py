@@ -80,12 +80,15 @@ class WhatsAppClient:
             logger.error("Meta Access Token no configurado (WHATSAPP_API_KEY)")
             return False
         
-        if not self.phone_number_id:
+        # Usar valor por defecto si no está configurado (para desarrollo)
+        phone_number_id = self.phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID", "378914085314990")
+        
+        if not phone_number_id:
             logger.error("Phone Number ID no configurado (WHATSAPP_PHONE_NUMBER_ID)")
             return False
         
         access_token = self.api_key
-        phone_number_id = self.phone_number_id
+        # phone_number_id ya está definido arriba con valor por defecto
         
         # Usar la versión más reciente de la API (v21.0)
         url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"

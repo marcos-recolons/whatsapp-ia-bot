@@ -14,5 +14,6 @@ COPY . .
 EXPOSE 8080
 
 # Comando para ejecutar la aplicación
-CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Cloud Run inyecta PORT automáticamente, pero usamos 8080 como fallback
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
 

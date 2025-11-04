@@ -87,7 +87,7 @@ async def verify_webhook(
     Endpoint de verificación de webhook para Meta WhatsApp Business API
     Meta llama a este endpoint para verificar que eres el dueño del webhook
     """
-    verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN")
+    verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "whatsapp_webhook_verify_token_2024")
     
     if not verify_token:
         logger.error("WHATSAPP_VERIFY_TOKEN no configurado")
@@ -229,7 +229,10 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
             "content": user_message
         })
         
-        # Llamar a OpenAI
+        # Llamar a OpenAI (usar el cliente si está configurado)
+        if not openai_api_key:
+            return "Lo siento, el servicio de IA no está configurado."
+        
         response = await client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
             messages=messages,
