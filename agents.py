@@ -484,6 +484,9 @@ IMPORTANTE:
             return "Parece que no estás registrado. Por favor, contacta al servicio de onboarding."
 
 # Instancias globales
+logger.info("Inicializando agentes...")
+logger.debug(f"OPENAI_API_KEY disponible al inicializar: {bool(os.getenv('OPENAI_API_KEY'))}")
 onboarding_agent = OnboardingAgent()
 dialogue_agent = DialogueAgent()
+logger.info(f"Agentes inicializados - Onboarding cliente: {onboarding_agent.client is not None}, Diálogo cliente: {dialogue_agent.client is not None}")
 
