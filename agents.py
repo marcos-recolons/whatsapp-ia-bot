@@ -25,16 +25,29 @@ class Agent:
         """Inicializa el cliente de OpenAI"""
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
+            # Verificar que la key no esté vacía
+            if not api_key.strip():
+                logger.warning("OPENAI_API_KEY está vacía")
+                self.client = None
+                return
             try:
                 self.client = AsyncOpenAI(api_key=api_key)
                 logger.info(f"Cliente OpenAI inicializado para agente (modelo: {self.model})")
+                logger.debug(f"API Key configurada (primeros 10 chars): {api_key[:10]}...")
             except Exception as e:
                 logger.error(f"Error inicializando cliente OpenAI: {str(e)}")
                 import traceback
                 logger.error(traceback.format_exc())
                 self.client = None
         else:
-            logger.warning("OPENAI_API_KEY no encontrada")
+            logger.warning("OPENAI_API_KEY no encontrada en variables de entorno")
+    
+    def _ensure_client(self):
+        """Asegura que el cliente esté inicializado, reintenta si es necesario"""
+        if not self.client:
+            logger.warning("Cliente no inicializado, reintentando...")
+            self._init_client()
+        return self.client is not None
     
     async def _call_function(self, function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Ejecuta una función del agente"""
@@ -57,8 +70,9 @@ class Agent:
         Returns:
             Respuesta del agente
         """
-        if not self.client:
-            logger.error("Cliente OpenAI no inicializado")
+        # Asegurar que el cliente esté inicializado
+        if not self._ensure_client():
+            logger.error("Cliente OpenAI no inicializado después de reintento")
             return "Lo siento, el servicio de IA no está configurado."
         
         if not user_message or not user_message.strip():
