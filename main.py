@@ -21,14 +21,20 @@ from agents import onboarding_agent, dialogue_agent
 # Cargar variables de entorno
 load_dotenv()
 
-# Configurar logging
+# Configurar logging - formato simple para Cloud Run
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(levelname)s - %(name)s - %(message)s',
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
 # Habilitar logging de nivel DEBUG para agentes
-logging.getLogger("agents").setLevel(logging.DEBUG)
+logging.getLogger("agents").setLevel(logging.INFO)
+
+# Forzar flush de logs
+import sys
+sys.stdout.flush()
+sys.stderr.flush()
 
 # Inicializar FastAPI
 app = FastAPI(title="WhatsApp IA Bot", version="1.0.0")
@@ -192,6 +198,7 @@ async def receive_whatsapp_webhook(
                                 from_number = message.get("from", "")
                                 
                                 logger.info(f"Mensaje recibido de {from_number}: {message_text}")
+                                print(f"[WEBHOOK] Mensaje recibido de {from_number}: {message_text}", flush=True)
                                 
                                 # Generar respuesta con IA
                                 ai_client = init_openai_client()
@@ -230,6 +237,7 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
     Genera una respuesta usando los agentes de IA
     Decide qué agente usar según si el usuario está registrado o no
     """
+    print(f"[PROCESS] Generando respuesta para {phone_number}: {user_message}", flush=True)
     try:
         # Obtener contexto de la conversación si existe
         conversation_history = bot_state.active_conversations.get(phone_number, [])
@@ -238,6 +246,7 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         user = await database.get_user(phone_number)
         
         # Verificar que los agentes estén inicializados
+        print(f"[DEBUG] Estado agentes - Onboarding: {onboarding_agent.client is not None}, Diálogo: {dialogue_agent.client is not None}", flush=True)
         logger.info(f"Estado agentes - Onboarding cliente: {onboarding_agent.client is not None}, Diálogo cliente: {dialogue_agent.client is not None}")
         if not onboarding_agent.client:
             logger.error("Agente de onboarding no tiene cliente OpenAI inicializado - reintentando...")
@@ -310,9 +319,12 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         return response_text
     
     except Exception as e:
+        print(f"[ERROR] Error generando respuesta: {str(e)}", flush=True)
         logger.error(f"Error generando respuesta IA: {str(e)}")
         import traceback
-        logger.error(traceback.format_exc())
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Traceback: {error_trace}", flush=True)
+        logger.error(error_trace)
         return "Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo."
 
 @app.post("/webhook/whatsapp/send")

@@ -150,14 +150,24 @@ class Agent:
                 })
                 
                 # Obtener respuesta final del modelo
-                final_response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    max_tokens=1000,
-                    temperature=0.7
-                )
-                
-                return final_response.choices[0].message.content
+                try:
+                    final_response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        max_tokens=1000,
+                        temperature=0.7
+                    )
+                    return final_response.choices[0].message.content
+                except Exception as e:
+                    logger.error(f"Error en segunda llamada a OpenAI después de función: {str(e)}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    # Si falla la segunda llamada, al menos devolver el resultado de la función
+                    error_str = str(e)
+                    if "401" in error_str or "Unauthorized" in error_str or "invalid_api_key" in error_str:
+                        logger.error("⚠️  API Key rechazada en segunda llamada")
+                        return "Lo siento, hay un problema con la configuración del servicio de IA. Por favor contacta al administrador."
+                    raise
             else:
                 return message.content
                 
