@@ -1,0 +1,28 @@
+# Google Cloud Build configuration para CI/CD automático
+steps:
+  # Construir imagen Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/whatsapp-ia-bot', '.']
+  
+  # Subir imagen a Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/whatsapp-ia-bot']
+  
+  # Desplegar en Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'whatsapp-ia-bot'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/whatsapp-ia-bot'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/whatsapp-ia-bot'
+
