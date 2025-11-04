@@ -238,10 +238,19 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         user = await database.get_user(phone_number)
         
         # Verificar que los agentes estén inicializados
+        logger.info(f"Estado agentes - Onboarding cliente: {onboarding_agent.client is not None}, Diálogo cliente: {dialogue_agent.client is not None}")
         if not onboarding_agent.client:
-            logger.error("Agente de onboarding no tiene cliente OpenAI inicializado")
+            logger.error("Agente de onboarding no tiene cliente OpenAI inicializado - reintentando...")
+            onboarding_agent._init_client()
         if not dialogue_agent.client:
-            logger.error("Agente de diálogo no tiene cliente OpenAI inicializado")
+            logger.error("Agente de diálogo no tiene cliente OpenAI inicializado - reintentando...")
+            dialogue_agent._init_client()
+        
+        # Verificar nuevamente después del reintento
+        if not onboarding_agent.client or not dialogue_agent.client:
+            logger.error(f"Agentes aún sin cliente después del reintento - Onboarding: {onboarding_agent.client is not None}, Diálogo: {dialogue_agent.client is not None}")
+            api_key_check = os.getenv("OPENAI_API_KEY")
+            logger.error(f"OPENAI_API_KEY disponible en runtime: {bool(api_key_check)}, primeros chars: {api_key_check[:10] if api_key_check else 'None'}...")
         
         # Si el usuario no existe o no ha completado el onboarding, usar agente de onboarding
         if not user or not user.get("onboarding_completed", False):
