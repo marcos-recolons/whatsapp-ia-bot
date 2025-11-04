@@ -27,9 +27,11 @@ class Agent:
         if api_key:
             try:
                 self.client = AsyncOpenAI(api_key=api_key)
-                logger.info(f"Cliente OpenAI inicializado para agente")
+                logger.info(f"Cliente OpenAI inicializado para agente (modelo: {self.model})")
             except Exception as e:
                 logger.error(f"Error inicializando cliente OpenAI: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
                 self.client = None
         else:
             logger.warning("OPENAI_API_KEY no encontrada")
@@ -56,7 +58,11 @@ class Agent:
             Respuesta del agente
         """
         if not self.client:
+            logger.error("Cliente OpenAI no inicializado")
             return "Lo siento, el servicio de IA no está configurado."
+        
+        if not user_message or not user_message.strip():
+            return "Por favor, envía un mensaje válido."
         
         if conversation_history is None:
             conversation_history = []
@@ -78,11 +84,14 @@ class Agent:
         
         # Llamar a OpenAI con función calling
         try:
+            tools = self.get_tools()
+            logger.debug(f"Llamando a OpenAI con modelo {self.model}, {len(tools)} herramientas disponibles")
+            
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                tools=self.get_tools(),
-                tool_choice="auto",
+                tools=tools if tools else None,
+                tool_choice="auto" if tools else None,
                 max_tokens=1000,
                 temperature=0.7
             )
@@ -93,10 +102,24 @@ class Agent:
             if message.tool_calls:
                 tool_call = message.tool_calls[0]
                 function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+                try:
+                    function_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parseando argumentos de función {function_name}: {e}")
+                    logger.error(f"Argumentos recibidos: {tool_call.function.arguments}")
+                    return "Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo."
                 
                 # Ejecutar función
-                function_result = await self._call_function(function_name, function_args)
+                try:
+                    function_result = await self._call_function(function_name, function_args)
+                except Exception as e:
+                    logger.error(f"Error ejecutando función {function_name}: {str(e)}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    function_result = {
+                        "success": False,
+                        "error": f"Error ejecutando función: {str(e)}"
+                    }
                 
                 # Agregar respuesta de función al contexto
                 messages.append(message)
@@ -121,6 +144,8 @@ class Agent:
                 
         except Exception as e:
             logger.error(f"Error procesando mensaje: {str(e)}")
+            import traceback
+            logger.error(f"Traceback completo: {traceback.format_exc()}")
             return "Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo."
     
     def get_tools(self) -> List[Dict[str, Any]]:
