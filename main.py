@@ -22,8 +22,13 @@ from agents import onboarding_agent, dialogue_agent
 load_dotenv()
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+# Habilitar logging de nivel DEBUG para agentes
+logging.getLogger("agents").setLevel(logging.DEBUG)
 
 # Inicializar FastAPI
 app = FastAPI(title="WhatsApp IA Bot", version="1.0.0")
@@ -232,14 +237,27 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         # Verificar si el usuario existe en la base de datos
         user = await database.get_user(phone_number)
         
+        # Verificar que los agentes estén inicializados
+        if not onboarding_agent.client:
+            logger.error("Agente de onboarding no tiene cliente OpenAI inicializado")
+        if not dialogue_agent.client:
+            logger.error("Agente de diálogo no tiene cliente OpenAI inicializado")
+        
         # Si el usuario no existe o no ha completado el onboarding, usar agente de onboarding
         if not user or not user.get("onboarding_completed", False):
             logger.info(f"Usuario {phone_number} no registrado o en onboarding, usando agente de onboarding")
-            response_text = await onboarding_agent.process_message(
-                user_message, 
-                phone_number, 
-                conversation_history
-            )
+            logger.debug(f"Cliente onboarding disponible: {onboarding_agent.client is not None}")
+            try:
+                response_text = await onboarding_agent.process_message(
+                    user_message, 
+                    phone_number, 
+                    conversation_history
+                )
+            except Exception as e:
+                logger.error(f"Error en onboarding_agent.process_message: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+                raise
             
             # Verificar si el usuario acaba de completar el onboarding
             user_after = await database.get_user(phone_number)
@@ -250,11 +268,18 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         else:
             # Usuario registrado, usar agente de diálogo
             logger.info(f"Usuario {phone_number} registrado, usando agente de diálogo")
-            response_text = await dialogue_agent.process_message(
-                user_message,
-                phone_number,
-                conversation_history
-            )
+            logger.debug(f"Cliente diálogo disponible: {dialogue_agent.client is not None}")
+            try:
+                response_text = await dialogue_agent.process_message(
+                    user_message,
+                    phone_number,
+                    conversation_history
+                )
+            except Exception as e:
+                logger.error(f"Error en dialogue_agent.process_message: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
+                raise
         
         # Guardar en historial
         if phone_number not in bot_state.active_conversations:
