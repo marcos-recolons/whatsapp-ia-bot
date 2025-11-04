@@ -146,6 +146,15 @@ class Agent:
             logger.error(f"Error procesando mensaje: {str(e)}")
             import traceback
             logger.error(f"Traceback completo: {traceback.format_exc()}")
+            
+            # Detectar errores específicos de autenticación
+            error_str = str(e)
+            if "401" in error_str or "Unauthorized" in error_str or "invalid_api_key" in error_str:
+                logger.error("⚠️  API Key de OpenAI inválida o expirada")
+                return "Lo siento, hay un problema con la configuración del servicio de IA. Por favor contacta al administrador."
+            elif "429" in error_str or "rate_limit" in error_str:
+                return "Lo siento, he alcanzado el límite de solicitudes. Por favor intenta de nuevo en unos momentos."
+            
             return "Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo."
     
     def get_tools(self) -> List[Dict[str, Any]]:
