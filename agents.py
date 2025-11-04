@@ -8,6 +8,11 @@ import json
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
+
+# Cargar variables de entorno antes de importar database
+load_dotenv()
+
 from database import database
 
 logger = logging.getLogger(__name__)
