@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 import openai
 from openai import AsyncOpenAI
 from whatsapp_client import whatsapp_client
+from database import database
+from agents import onboarding_agent, dialogue_agent
 
 # Cargar variables de entorno
 load_dotenv()
@@ -77,8 +79,9 @@ async def root():
     """Endpoint de salud"""
     return {
         "status": "online",
-        "service": "WhatsApp IA Bot",
-        "connected": bot_state.is_connected
+        "service": "WhatsApp IA Bot - Sistema de Retos Diarios",
+        "connected": bot_state.is_connected,
+        "database_connected": database.is_connected()
     }
 
 @app.get("/health")
@@ -86,7 +89,8 @@ async def health_check():
     """Health check para producción"""
     return {
         "status": "healthy",
-        "connected": bot_state.is_connected
+        "connected": bot_state.is_connected,
+        "database_connected": database.is_connected()
     }
 
 @app.get("/webhook/whatsapp")
@@ -218,43 +222,39 @@ async def receive_whatsapp_webhook(
 
 async def generate_ai_response(user_message: str, phone_number: str) -> str:
     """
-    Genera una respuesta usando OpenAI
+    Genera una respuesta usando los agentes de IA
+    Decide qué agente usar según si el usuario está registrado o no
     """
     try:
         # Obtener contexto de la conversación si existe
         conversation_history = bot_state.active_conversations.get(phone_number, [])
         
-        # Construir mensajes para OpenAI
-        messages = [
-            {
-                "role": "system",
-                "content": "Eres un asistente útil y amigable en WhatsApp. Responde de manera concisa y natural."
-            }
-        ]
+        # Verificar si el usuario existe en la base de datos
+        user = await database.get_user(phone_number)
         
-        # Agregar historial de conversación
-        for msg in conversation_history[-5:]:  # Últimos 5 mensajes
-            messages.append(msg)
-        
-        # Agregar el mensaje actual
-        messages.append({
-            "role": "user",
-            "content": user_message
-        })
-        
-        # Llamar a OpenAI (usar el cliente si está configurado)
-        ai_client = init_openai_client()
-        if not ai_client:
-            return "Lo siento, el servicio de IA no está configurado."
-        
-        response = await ai_client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-            messages=messages,
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        ai_response = response.choices[0].message.content
+        # Si el usuario no existe o no ha completado el onboarding, usar agente de onboarding
+        if not user or not user.get("onboarding_completed", False):
+            logger.info(f"Usuario {phone_number} no registrado o en onboarding, usando agente de onboarding")
+            response_text = await onboarding_agent.process_message(
+                user_message, 
+                phone_number, 
+                conversation_history
+            )
+            
+            # Verificar si el usuario acaba de completar el onboarding
+            user_after = await database.get_user(phone_number)
+            if user_after and user_after.get("onboarding_completed", False):
+                logger.info(f"Usuario {phone_number} completó el onboarding")
+                # Opcional: mensaje de bienvenida al sistema de retos
+                response_text += "\n\n¡Bienvenido al sistema de retos diarios! A partir de ahora recibirás retos personalizados basados en tus intereses."
+        else:
+            # Usuario registrado, usar agente de diálogo
+            logger.info(f"Usuario {phone_number} registrado, usando agente de diálogo")
+            response_text = await dialogue_agent.process_message(
+                user_message,
+                phone_number,
+                conversation_history
+            )
         
         # Guardar en historial
         if phone_number not in bot_state.active_conversations:
@@ -266,17 +266,19 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         })
         bot_state.active_conversations[phone_number].append({
             "role": "assistant",
-            "content": ai_response
+            "content": response_text
         })
         
-        # Limitar historial a 10 mensajes
-        if len(bot_state.active_conversations[phone_number]) > 10:
-            bot_state.active_conversations[phone_number] = bot_state.active_conversations[phone_number][-10:]
+        # Limitar historial a 20 mensajes (más que antes porque los agentes necesitan más contexto)
+        if len(bot_state.active_conversations[phone_number]) > 20:
+            bot_state.active_conversations[phone_number] = bot_state.active_conversations[phone_number][-20:]
         
-        return ai_response
+        return response_text
     
     except Exception as e:
         logger.error(f"Error generando respuesta IA: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return "Lo siento, ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo."
 
 @app.post("/webhook/whatsapp/send")
@@ -311,6 +313,7 @@ async def startup_event():
         logger.info(f"Puerto: {os.getenv('PORT', '8080')}")
         logger.info(f"OpenAI API Key presente: {'Sí' if openai_api_key else 'No'}")
         logger.info(f"WhatsApp provider: {os.getenv('WHATSAPP_PROVIDER', 'meta')}")
+        logger.info(f"Firestore conectado: {'Sí' if database.is_connected() else 'No'}")
         bot_state.is_connected = True
         logger.info("✅ Servidor listo para recibir mensajes")
         logger.info("=" * 60)
