@@ -26,12 +26,24 @@ logger = logging.getLogger(__name__)
 # Inicializar FastAPI
 app = FastAPI(title="WhatsApp IA Bot", version="1.0.0")
 
-# Configurar OpenAI
+# Configurar OpenAI (lazy initialization para evitar errores al importar)
 openai_api_key = os.getenv("OPENAI_API_KEY")
+client = None
+
+def init_openai_client():
+    """Inicializa el cliente de OpenAI solo cuando sea necesario"""
+    global client
+    if client is None and openai_api_key:
+        try:
+            client = AsyncOpenAI(api_key=openai_api_key)
+            logger.info("OpenAI cliente inicializado correctamente")
+        except Exception as e:
+            logger.warning(f"Error inicializando OpenAI: {str(e)}")
+            client = None
+    return client
+
 if not openai_api_key:
     logger.warning("OPENAI_API_KEY no encontrada. La IA no funcionará.")
-else:
-    client = AsyncOpenAI(api_key=openai_api_key)
 
 # Modelos de datos
 class WhatsAppMessage(BaseModel):
@@ -173,7 +185,8 @@ async def receive_whatsapp_webhook(
                                 logger.info(f"Mensaje recibido de {from_number}: {message_text}")
                                 
                                 # Generar respuesta con IA
-                                if not openai_api_key:
+                                ai_client = init_openai_client()
+                                if not ai_client:
                                     response_text = "Lo siento, el servicio de IA no está configurado."
                                 else:
                                     response_text = await generate_ai_response(message_text, from_number)
@@ -230,10 +243,11 @@ async def generate_ai_response(user_message: str, phone_number: str) -> str:
         })
         
         # Llamar a OpenAI (usar el cliente si está configurado)
-        if not openai_api_key:
+        ai_client = init_openai_client()
+        if not ai_client:
             return "Lo siento, el servicio de IA no está configurado."
         
-        response = await client.chat.completions.create(
+        response = await ai_client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
             messages=messages,
             max_tokens=500,
@@ -291,9 +305,18 @@ async def send_whatsapp_message(to: str, message: str):
 @app.on_event("startup")
 async def startup_event():
     """Inicialización al arrancar el servidor"""
-    logger.info("Iniciando servidor WhatsApp IA Bot...")
-    bot_state.is_connected = True
-    logger.info("Servidor listo para recibir mensajes")
+    try:
+        logger.info("=" * 60)
+        logger.info("Iniciando servidor WhatsApp IA Bot...")
+        logger.info(f"Puerto: {os.getenv('PORT', '8080')}")
+        logger.info(f"OpenAI API Key presente: {'Sí' if openai_api_key else 'No'}")
+        logger.info(f"WhatsApp provider: {os.getenv('WHATSAPP_PROVIDER', 'meta')}")
+        bot_state.is_connected = True
+        logger.info("✅ Servidor listo para recibir mensajes")
+        logger.info("=" * 60)
+    except Exception as e:
+        logger.error(f"Error en startup: {str(e)}")
+        # No lanzar excepción para que el servidor pueda iniciar
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -305,5 +328,11 @@ if __name__ == "__main__":
     import uvicorn
     # Cloud Run inyecta PORT automáticamente, usar 8080 por defecto
     port = int(os.getenv("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"🚀 Iniciando servidor en puerto {port}")
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        log_level="info"
+    )
 
